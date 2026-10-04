@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Esebial.Codebase.Data/Esebial.Codebase.Data.csproj" Id="fb61b214-c936-4f76-ba36-3f9539e96e6f" />
+  <Project Path="Esebial.Codebase.Resources/Esebial.Codebase.Resources.csproj" Id="937275b5-9571-4fc0-a46f-dd746d909a51" />
+  <Project Path="Esebial.Codebase.Services/Esebial.Codebase.Services.csproj" Id="b3d803ff-b1d0-4736-83bc-1d6aee0a1d67" />
+  <Project Path="Esebial.Codebase.WebApp/Esebial.Codebase.WebApp.csproj" />
+</Solution>
