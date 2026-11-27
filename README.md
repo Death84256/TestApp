@@ -130,7 +130,7 @@ dotnet build
 ### 5. Run the backend
 
 ```powershell
-dotnet run --project Esebial.Codebase.WebApp
+dotnet run --project Esebial.Codebase.WebApp --launch-profile http
 ```
 
 Alternatively, open the solution in Visual Studio and run the `Esebial.Codebase.WebApp` project.
@@ -223,31 +223,56 @@ npx expo start --web
 
 ## Running the Full Application
 
-The backend, React Web application, and React Native application can be started separately.
+The C# backend, Express gateway, React Web app, and React Native app run as separate local processes.
 
 ### Terminal 1 - ASP.NET Core Backend
 
 From the solution root:
 
 ```powershell
-dotnet run --project Esebial.Codebase.WebApp
+dotnet run --project Esebial.Codebase.WebApp --launch-profile http
 ```
 
 ### Terminal 2 - React Web
+
+The Vite proxy defaults to the IIS Express HTTP address `http://localhost:64872` (the browser may open `https://localhost:44301`). If you start the backend with the `http` launch profile in Terminal 1, set `VITE_API_PROXY_TARGET=http://localhost:5187` in `React-Side/Web/.env.local` and restart Vite.
 
 ```powershell
 cd React-Side/Web
 npm run dev
 ```
 
-### Terminal 3 - React Native / Expo
+### Terminal 3 - Express mobile API gateway
+
+```powershell
+cd React-Side/Mobile
+cd api
+Copy-Item .env.example .env
+npm install
+npm start
+```
+
+The Express gateway listens on port `3001` for Expo Go and forwards API requests to the C# backend at `http://localhost:5187`.
+
+### Terminal 4 - React Native / Expo
 
 ```powershell
 cd React-Side/Mobile
 npx expo start
 ```
 
-The React Web and React Native applications communicate with the ASP.NET Core backend through its configured API URL.
+The React Web application communicates with the ASP.NET Core JSON API through Vite's proxy. The React Native app calls an Express gateway, which forwards requests to that same C# API. Login sets the configured authentication cookie and returns a bearer token; the mobile app sends the token in its `Authorization` header.
+
+### Account API
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/account/login` | Accepts `{ "userId": "...", "password": "..." }`, sets the auth cookie, and returns `accessToken`, `expiresIn`, and the user. |
+| `POST` | `/api/account/register` | Accepts `userId`, `name`, `password`, and `confirmPassword`. |
+| `GET` | `/api/account/me` | Returns the signed-in user. |
+| `POST` | `/api/account/logout` | Clears the auth cookie. |
+
+Unauthenticated API requests return `401` instead of redirecting to a server-rendered login page. React owns login, registration, and all other frontend screens.
 
 ## Database
 

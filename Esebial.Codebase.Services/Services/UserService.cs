@@ -47,6 +47,10 @@ namespace Esebial.Codebase.Services.Services
 
                 _repository.AddUser(user);
             }
+            else
+            {
+                throw new InvalidDataException("That user ID is already registered.");
+            }
         }
     }
 }
