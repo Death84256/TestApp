@@ -56,7 +56,6 @@ namespace Esebial.Codebase.WebApp
 
             var token = this.Configuration.GetTokenAuthentication();
             this._signingKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(token.SecretKey));
-            this._tokenProviderOptions = TokenProviderOptionsFactory.Create(token, this._signingKey);
             this._tokenValidationParameters = new TokenValidationParameters
             {
                 ValidateIssuerSigningKey = true,
@@ -82,6 +81,7 @@ namespace Esebial.Codebase.WebApp
             this._services = services;
 
             services.AddMemoryCache();
+            services.AddDistributedMemoryCache();
 
             // Register SQL database configuration context as services.
             services.AddDbContext<CodebaseDbContext>(options =>
@@ -91,8 +91,12 @@ namespace Esebial.Codebase.WebApp
                     sqlServerOptions => sqlServerOptions.CommandTimeout(120));
             });
 
-            services.AddControllersWithViews();
-            services.AddRazorPages().AddRazorRuntimeCompilation();
+            services.AddControllers();
+            services.AddCors(options => options.AddPolicy("ReactClients", policy =>
+                policy.WithOrigins("http://localhost:5173", "http://localhost:19006", "http://localhost:8081")
+                    .AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .AllowCredentials()));
 
             //Configuration
             services.Configure<TokenAuthentication>(Configuration.GetSection("TokenAuthentication"));
@@ -139,8 +143,6 @@ namespace Esebial.Codebase.WebApp
 
             this.ConfigureLogger();
 
-            this._app.UseTokenProvider(_tokenProviderOptions);
-
             this._app.UseHttpsRedirection();
             this._app.UseStaticFiles();
 
@@ -150,6 +152,7 @@ namespace Esebial.Codebase.WebApp
 
             this._app.UseSession();
             this._app.UseRouting();
+            this._app.UseCors("ReactClients");
 
             this._app.UseAuthentication();
             this._app.UseAuthorization();

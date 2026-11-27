@@ -3,10 +3,12 @@ using Esebial.Codebase.WebApp.Extensions.Configuration;
 using Esebial.Codebase.Resources.Constants;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Http;
+using System;
+using System.Threading.Tasks;
 
 namespace Esebial.Codebase.WebApp
 {
@@ -15,8 +17,6 @@ namespace Esebial.Codebase.WebApp
     {
         private readonly SymmetricSecurityKey _signingKey;
         private readonly TokenValidationParameters _tokenValidationParameters;
-        private readonly TokenProviderOptions _tokenProviderOptions;
-
         /// <summary>
         /// Configure authorization
         /// </summary>
@@ -27,7 +27,18 @@ namespace Esebial.Codebase.WebApp
             var tokenValidationParametersFactory = this._services.BuildServiceProvider().GetService<TokenValidationParametersFactory>();
             var tokenValidationParameters = tokenValidationParametersFactory.Create();
 
-            this._services.AddAuthentication(Const.AuthenticationScheme)
+            this._services.AddAuthentication(options =>
+            {
+                options.DefaultScheme = "Smart";
+                options.DefaultChallengeScheme = "Smart";
+            })
+            .AddPolicyScheme("Smart", "Bearer or cookie authentication", options =>
+            {
+                options.ForwardDefaultSelector = context =>
+                    context.Request.Headers["Authorization"].ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+                        ? JwtBearerDefaults.AuthenticationScheme
+                        : Const.AuthenticationScheme;
+            })
             .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
             {
                 options.TokenValidationParameters = tokenValidationParameters;
@@ -45,19 +56,23 @@ namespace Esebial.Codebase.WebApp
                 options.AccessDeniedPath = new PathString("/html/Forbidden.html");
                 options.ReturnUrlParameter = "ReturnUrl";
                 options.TicketDataFormat = new CustomJwtDataFormat(SecurityAlgorithms.HmacSha256, _tokenValidationParameters, Configuration, tokenProviderOptionsFactory);
+                options.Events.OnRedirectToLogin = context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    return Task.CompletedTask;
+                };
+                options.Events.OnRedirectToAccessDenied = context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    return Task.CompletedTask;
+                };
             });
 
             this._services.AddAuthorization(options =>
             {
-                options.AddPolicy("RequireAuthenticatedUser", policy =>
-                {
-                    policy.RequireAuthenticatedUser();
-                });
-            });
-
-            this._services.AddMvc(options =>
-            {
-                options.Filters.Add(new AuthorizeFilter("RequireAuthenticatedUser"));
+                options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                    .RequireAuthenticatedUser()
+                    .Build();
             });
         }
     }

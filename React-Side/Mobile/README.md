@@ -1,56 +1,58 @@
-# Welcome to your Expo app 👋
+# Esebial Mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+React Native account client built with Expo SDK 58. It supports account registration, sign-in, sign-out, and a connection check for the C# API.
 
-## Get started
+## Requirements
 
-1. Install dependencies
+- Node.js 22.13 or newer
+- Expo Go compatible with SDK 58
+- Phone and development PC on the same Wi-Fi network
 
-   ```bash
+## Run the full mobile stack
+
+Open three terminals from the repository root.
+
+1. Start the C# API. In Visual Studio, run the **IIS Express** profile (the browser may open at `https://localhost:44301`). The Express gateway uses this local HTTPS endpoint and accepts its self-signed development certificate only for localhost.
+
+   If you prefer to start the C# project from a terminal instead, use the `http` profile:
+
+   ```powershell
+   dotnet run --project Esebial.Codebase.WebApp --launch-profile http
+   ```
+
+   This profile serves the API at `http://localhost:5187`. Set `BACKEND_API_URL=http://localhost:5187` in `api/.env` when using this profile. The sample `.env` defaults to IIS Express at `https://localhost:44301`.
+
+2. Start the Express gateway:
+
+   ```powershell
+   cd React-Side/Mobile/api
+   Copy-Item .env.example .env
    npm install
+   npm start
    ```
 
-2. Start the app
+   Express listens on `0.0.0.0:3001` and forwards `/api/...` requests to the C# API on the same PC.
 
-   ```bash
-   npx expo start
+3. Start Expo:
+
+   ```powershell
+   cd React-Side/Mobile
+   npm install
+   npx expo start --lan
    ```
 
-In the output, you'll find options to open the app in a
+   Scan the QR code with Expo Go. If Windows Firewall asks, allow Node.js on the private network.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+The mobile app reads the Expo development host address and calls the Express gateway on port `3001`. It must not call the C# port `64872` or Expo's bundler port `8081` directly. To set the gateway address manually, copy `.env.example` to `.env.local`, replace the sample PC address if needed, and restart Expo. The phone's browser can check `http://<PC-IPv4-address>:3001/health`; a successful response includes `"backendReachable": true`.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+The Account screen offers registration and sign-in. The Workspace screen's **Check connection** action checks the Express gateway and its C# API connection. The sign-in token is held in memory and sent as a bearer token to authenticated endpoints.
 
-## Get a fresh project
-
-When you're ready, run:
+## Development
 
 ```bash
-npm run reset-project
+npx expo lint
+npx tsc --noEmit
+npx expo-doctor
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-### Other setup steps
-
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Expo Router screens live in `src/app/`. The API gateway source is in `api/server.js`.

@@ -1,142 +1,110 @@
-﻿using Esebial.Codebase.Data.Models;
+using AutoMapper;
+using Esebial.Codebase.Data.Models;
 using Esebial.Codebase.Services.Interfaces;
-using Esebial.Codebase.Services.Manager;
 using Esebial.Codebase.Services.ServiceModels;
 using Esebial.Codebase.WebApp.Authentication;
 using Esebial.Codebase.WebApp.Models;
 using Esebial.Codebase.WebApp.Mvc;
-using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using System;
 using System.IO;
+using System.Security.Claims;
+using System.Text;
 using System.Threading.Tasks;
 using static Esebial.Codebase.Resources.Constants.Enums;
+using Esebial.Codebase.WebApp.Extensions.Configuration;
 
 namespace Esebial.Codebase.WebApp.Controllers
 {
+    /// <summary>JSON authentication endpoints used by the React clients.</summary>
+    [ApiController]
+    [Route("api/account")]
     public class AccountController : ControllerBase<AccountController>
     {
-        private readonly SessionManager _sessionManager;
         private readonly SignInManager _signInManager;
-        private readonly TokenValidationParametersFactory _tokenValidationParametersFactory;
-        private readonly TokenProviderOptionsFactory _tokenProviderOptionsFactory;
-        private readonly IConfiguration _appConfiguration;
         private readonly IUserService _userService;
+        private readonly IConfiguration _configuration;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="AccountController"/> class.
-        /// </summary>
-        /// <param name="signInManager">The sign in manager.</param>
-        /// <param name="localizer">The localizer.</param>
-        /// <param name="userService">The user service.</param>
-        /// <param name="httpContextAccessor">The HTTP context accessor.</param>
-        /// <param name="loggerFactory">The logger factory.</param>
-        /// <param name="configuration">The configuration.</param>
-        /// <param name="mapper">The mapper.</param>
-        /// <param name="tokenValidationParametersFactory">The token validation parameters factory.</param>
-        /// <param name="tokenProviderOptionsFactory">The token provider options factory.</param>
         public AccountController(
-                            SignInManager signInManager,
-                            IHttpContextAccessor httpContextAccessor,
-                            ILoggerFactory loggerFactory,
-                            IConfiguration configuration,
-                            IMapper mapper,
-                            IUserService userService,
-                            TokenValidationParametersFactory tokenValidationParametersFactory,
-                            TokenProviderOptionsFactory tokenProviderOptionsFactory) : base(httpContextAccessor, loggerFactory, configuration, mapper)
+            SignInManager signInManager,
+            IHttpContextAccessor httpContextAccessor,
+            ILoggerFactory loggerFactory,
+            IConfiguration configuration,
+            IMapper mapper,
+            IUserService userService) : base(httpContextAccessor, loggerFactory, configuration, mapper)
         {
-            this._sessionManager = new SessionManager(this._session);
-            this._signInManager = signInManager;
-            this._tokenProviderOptionsFactory = tokenProviderOptionsFactory;
-            this._tokenValidationParametersFactory = tokenValidationParametersFactory;
-            this._appConfiguration = configuration;
-            this._userService = userService;
+            _signInManager = signInManager;
+            _userService = userService;
+            _configuration = configuration;
         }
 
-        /// <summary>
-        /// Login Method
-        /// </summary>
-        /// <returns>Created response view</returns>
-        [HttpGet]
+        [HttpPost("login")]
         [AllowAnonymous]
-        public ActionResult Login()
+        public async Task<IActionResult> Login([FromBody] LoginViewModel model)
         {
-            TempData["returnUrl"] = System.Net.WebUtility.UrlDecode(HttpContext.Request.Query["ReturnUrl"]);
-            this._sessionManager.Clear();
-            this._session.SetString("SessionId", System.Guid.NewGuid().ToString());
-            return this.View();
-        }
-
-        /// <summary>
-        /// Authenticate user and signs the user in when successful.
-        /// </summary>
-        /// <param name="model">The model.</param>
-        /// <param name="returnUrl">The return URL.</param>
-        /// <returns> Created response view </returns>
-        [HttpPost]
-        [AllowAnonymous]
-        public async Task<IActionResult> Login(LoginViewModel model, string returnUrl)
-        {
-            this._session.SetString("HasSession", "Exist");
-
             User user = null;
-            var loginResult = _userService.AuthenticateUser(model.UserId, model.Password, ref user);
-            if (loginResult == LoginResult.Success)
+            if (_userService.AuthenticateUser(model.UserId, model.Password, ref user) != LoginResult.Success)
+                return Unauthorized(new { message = "Incorrect user ID or password." });
+
+            await _signInManager.SignInAsync(user);
+
+            var tokenSettings = _configuration.GetTokenAuthentication();
+            var signingKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(tokenSettings.SecretKey));
+            var tokenOptions = TokenProviderOptionsFactory.Create(tokenSettings, signingKey);
+            var tokenProvider = new TokenProvider(Options.Create(tokenOptions));
+            var accessToken = tokenProvider.GetJwtSecurityToken(_signInManager.CreateClaimsIdentity(user), tokenOptions);
+
+            return Ok(new
             {
-                // 認証OK
-                await this._signInManager.SignInAsync(user);
-                this._session.SetString("UserName", user.Name);
-                return RedirectToAction("Index", "Home");
-            }
-            else
-            {
-                // 認証NG
-                TempData["ErrorMessage"] = "Incorrect UserId or Password";
-                return View();
-            }
-            return View();
+                accessToken,
+                expiresIn = (int)tokenOptions.Expiration.TotalSeconds,
+                user = new { user.UserId, user.Name }
+            });
         }
 
-        [HttpGet]
+        [HttpPost("register")]
         [AllowAnonymous]
-        public IActionResult Register()
-        {
-            return View();
-        }
-
-        [HttpPost]
-        [AllowAnonymous]
-        public IActionResult Register(UserViewModel model)
+        public IActionResult Register([FromBody] UserViewModel model)
         {
             try
             {
                 _userService.AddUser(model);
-                return RedirectToAction("Login", "Account");
+                return StatusCode(StatusCodes.Status201Created, new { message = "Account created." });
             }
-            catch(InvalidDataException ex)
+            catch (InvalidDataException ex)
             {
-                TempData["ErrorMessage"] = ex.Message;
+                return BadRequest(new { message = ex.Message });
             }
-            catch(Exception ex)
+            catch (Exception)
             {
-                TempData["ErrorMessage"] = Resources.Messages.Errors.ServerError;
+                return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Unable to create the account." });
             }
-            return View();
         }
 
-        /// <summary>
-        /// Sign Out current account and return login view.
-        /// </summary>
-        /// <returns>Created response view</returns>
-        [AllowAnonymous]
-        public async Task<IActionResult> SignOutUser()
+        [HttpGet("me")]
+        public IActionResult CurrentUser()
         {
-            await this._signInManager.SignOutAsync();
-            return RedirectToAction("Login", "Account");
+            return Ok(new
+            {
+                user = new
+                {
+                    UserId = User.FindFirstValue(ClaimTypes.NameIdentifier),
+                    Name = User.Identity?.Name
+                }
+            });
+        }
+
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout()
+        {
+            await _signInManager.SignOutAsync();
+            return Ok(new { message = "Signed out." });
         }
     }
 }

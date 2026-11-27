@@ -1,16 +1,23 @@
-# React + Vite
+# Esebial Web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The React + Vite client provides account registration, sign in, and a signed-in workspace screen. Account data is served by the ASP.NET Core API.
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Start the backend in Visual Studio with the IIS Express profile. The HTTPS URL shown by the browser is `https://localhost:44301`; IIS Express also listens at `http://localhost:64872`, which is the Vite proxy target.
 
-## React Compiler
+Alternatively, start the backend from the repository root:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```powershell
+dotnet run --project Esebial.Codebase.WebApp --launch-profile http
+```
 
-## Expanding the ESLint configuration
+In another terminal:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```powershell
+cd React-Side/Web
+npm install
+npm run dev
+```
+
+Vite proxies `/api` requests to `http://localhost:64872` by default, matching IIS Express. Start the backend before registering or signing in. If you use the `http` launch profile from the command line instead, set `VITE_API_PROXY_TARGET=http://localhost:5187` in `.env.local`. Restart Vite after changing the target.

@@ -16,6 +16,9 @@ x86/
 # Visual Studio cache/options
 .vs/
 .vscode/
+!React-Side/.vscode/
+React-Side/.vscode/*
+!React-Side/.vscode/settings.json
 *.user
 *.userosscache
 *.suo

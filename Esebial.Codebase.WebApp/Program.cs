@@ -30,11 +30,7 @@ var app = appBuilder.Build();
 
 configurer.ConfigureApp(app, app.Environment);
 
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Account}/{action=Login}");
 app.MapControllers();
-app.MapRazorPages();
 
 // Run application
 app.Run();

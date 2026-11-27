@@ -1,121 +1,108 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
+import { useEffect, useState } from 'react'
 import './App.css'
 
+async function api(path, options = {}) {
+  const response = await fetch(`/api/account/${path}`, {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+    ...options,
+  })
+  const body = response.status === 204 ? null : await response.json().catch(() => null)
+  if (!response.ok) throw new Error(body?.message || 'Something went wrong. Please try again.')
+  return body
+}
+
 function App() {
-  const [count, setCount] = useState(0)
+  const [user, setUser] = useState(null)
+  const [checkingSession, setCheckingSession] = useState(true)
+  const [mode, setMode] = useState('login')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    api('me')
+      .then((result) => setUser(result.user))
+      .catch(() => {})
+      .finally(() => setCheckingSession(false))
+  }, [])
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    setError('')
+    setBusy(true)
+    const form = new FormData(event.currentTarget)
+    const payload = Object.fromEntries(form.entries())
+    try {
+      if (mode === 'register') {
+        await api('register', { method: 'POST', body: JSON.stringify(payload) })
+        setMode('login')
+        setError('Account created. Sign in with your new account.')
+      } else {
+        const result = await api('login', { method: 'POST', body: JSON.stringify(payload) })
+        setUser(result.user)
+      }
+    } catch (requestError) {
+      setError(requestError.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleLogout() {
+    await api('logout', { method: 'POST' }).catch(() => {})
+    setUser(null)
+    setMode('login')
+  }
+
+  if (checkingSession) return <main className="loading">Loading your workspace…</main>
+
+  if (user) {
+    return (
+      <main className="dashboard-shell">
+        <header className="topbar"><a className="wordmark" href="/">Esebial<span>.</span></a><button className="text-button" onClick={handleLogout}>Sign out</button></header>
+        <section className="welcome-card">
+          <div className="eyebrow">YOUR WORKSPACE</div>
+          <div className="avatar">{(user.name || user.userId || 'U').slice(0, 1).toUpperCase()}</div>
+          <h1>Welcome back, {user.name || user.userId}.</h1>
+          <p>You’re signed in and ready to go.</p>
+          <div className="profile-row"><span>Account ID</span><strong>{user.userId}</strong></div>
+        </section>
+        <footer>Made for a clearer way to work.</footer>
+      </main>
+    )
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <main className="auth-shell">
+      <section className="brand-panel">
+        <a className="wordmark" href="/">Esebial<span>.</span></a>
+        <div className="brand-copy">
+          <div className="eyebrow">A BETTER PLACE TO BEGIN</div>
+          <h1>Make room for<br /><em>what matters.</em></h1>
+          <p>Your work, your people, and your next good idea — all in one place.</p>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
+        <div className="brand-foot">Simple by design. Ready when you are.</div>
+        <div className="orb orb-one" /><div className="orb orb-two" />
       </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+      <section className="form-panel">
+        <div className="auth-form-wrap">
+          <div className="eyebrow mobile-brand">ESEBIAL</div>
+          <div className="eyebrow">{mode === 'login' ? 'WELCOME BACK' : 'GET STARTED'}</div>
+          <h2>{mode === 'login' ? 'Sign in to your account' : 'Create your account'}</h2>
+          <p className="form-intro">{mode === 'login' ? 'Enter your details to continue.' : 'A few details and you’re on your way.'}</p>
+          <form onSubmit={handleSubmit}>
+            {mode === 'register' && <label>Your name<input name="name" autoComplete="name" placeholder="Jane Smith" required /></label>}
+            <label>User ID<input name="userId" autoComplete="username" placeholder="Your user ID" required /></label>
+            <label>Password<input name="password" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="Enter your password" required /></label>
+            {mode === 'register' && <label>Confirm password<input name="confirmPassword" type="password" autoComplete="new-password" placeholder="Enter it again" required /></label>}
+            {error && <div className={error.startsWith('Account created') ? 'notice success' : 'notice'} role="status">{error}</div>}
+            <button className="submit-button" disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}<span aria-hidden="true">↗</span></button>
+          </form>
+          <p className="switch-mode">{mode === 'login' ? 'New to Esebial?' : 'Already have an account?'} <button onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError('') }}>{mode === 'login' ? 'Create an account' : 'Sign in'}</button></p>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
+        <div className="form-footer">© {new Date().getFullYear()} Esebial Codebase</div>
       </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+    </main>
   )
 }
 
